@@ -1,0 +1,29 @@
+{
+  "name": "yab",
+  "version": "1.0.0",
+  "description": "Yet Another Bundler",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SKYCRATE-ltd/YAB.git"
+  },
+  "keywords": [
+    "javascript",
+    "bundler",
+    "thingy"
+  ],
+  "author": "Graham Robertson | SKYCRATE ltd",
+  "license": "GPL-3.0",
+  "bugs": {
+    "url": "https://github.com/SKYCRATE-ltd/YAB/issues"
+  },
+  "homepage": "https://github.com/SKYCRATE-ltd/YAB#readme",
+  "dependencies": {
+    "computer": "github:SKYCRATE-ltd/computer",
+    "jst": "github:SKYCRATE-ltd/jst#backend"
+  }
+}
