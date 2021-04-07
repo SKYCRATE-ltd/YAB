@@ -1,61 +1,176 @@
 import {
-	readlines,
-	write
+	read,
+	write,
+	parent_dir,
+	resolve_dir
 } from "computer";
+import {
+	Type,
+	List
+} from "zed";
+import Program from "termite";
 
-import JST from "jst";
+const parse_selects = selects => {
+	selects = selects.split(',')
+				.map(x => x.trim())
+				.map(x => x.split(' as ').map(x => x.trim()));
+	return [
+		selects
+			.map(([name, alias]) => `${alias || name}`)
+			.join(','),
+		selects
+			.filter(([name, alias]) => alias)
+			.map(([name, alias]) => `${alias}:mod.exports.${name}`)
+			.join(',')
+	];
+}
 
-export function convert() {
-	//
+export class Replacer extends Type({
+	regex: RegExp,
+	replacer: Function
+}) {
+	constructor(regex, replacer) {
+		this.regex = regex;
+		this.replacer = replacer;
+	}
 };
 
-export function parse() {
-	//
-};
+const IMPORT_CHECKS = [
+	[
+		/^import\s+"(\S+)"/,
+		(match, uri) => `module.import("${uri}")`
+	],
+	[
+		/^(await\s+)?import\s*\(\s*"([\S^"]+)"\s*\)/,
+		(match, async, uri) => `module.import("${uri}")`
+	],
+	// TODO: require("")
+	// [
+	// 	/^import\s+\*\s+as\s+(\S+)\s+from\s+"(\S+)"/,
+	// 	(match, name, uri) => `const ${name} = module.import("${uri}").exports`
+	// ],
+	[
+		/^import\s+(\S+)\s*,\s*\*\s+as\s+(\S+)\s+from\s+"(\S+)"/,
+		(match, std = '', name, uri) =>
+`const [${std && `${std},`}${name}] = (mod => [${std && 'mod.default,'}mod.exports])(module.import("${uri}"))`
+	],
+	[
+		/^import\s+((\S+)\s*,\s*)?{(.+)}\s+from\s+"(\S+)"/,
+		(match, match2, std = '', selects, uri) => {
+			const [imports, aliases] = parse_selects(selects);
+			return `const [${std && `${std},`}{${imports}}] = (mod => [${std && 'mod.default,'}{...mod.exports,${aliases}}])(module.import("${uri}"))`;
+		}
+	],
+	// [
+	// 	/^import\s+(\S+)\s*,\s*{(.+)}\s+from\s+"(\S+)"/,
+	// 	(match, std, selects, uri) => {
+	// 		return `const [${std},${}]`
+	// 	}
+	// ],
+	[
+		/^import\s+(\S+)\s+from\s+"(\S+)"/,
+		(match, std, uri) => `const ${std} = module.import("${uri}").default`
+	]
+].map(([regex, replacer]) => new Replacer(regex, replacer));
 
-export function open() {
-	// open file and get the lines...
-	// multiline comments will be done like LBLOCK in my other tingy
+const EXPORT_CHECKS = [
+	[
+		/export\s+(var|let|const|function|class)\s+(\S+)\s*(=|{)/,
+		(match, type, name, end) => {
+			// If type is function or class, we need to do some extra work...
+			//	(just an extra assign statement I believe... and changing type to be "let/const"
+			//	depending whether or not its a function or a class.) We gotta do somethg funky with end too I think.... HMMMMMM
+			return `${type} ${name} = module.exports.${name} ${end}`;
+		},
+// => var bean = module.exports.bean = ...
 
-	// We remove these things and then find the lines regarding
-	// what modules need to be imported
+		/export let that = "that"/,
+// => let that = module.exports.that = ...
 
-	// each of those needs to be "embedded" into our template
-		// we take the path we're on + the path of the script
-		// (and some trickery for module names)
-			// stored as a dictionary of functions and referenced by
-			// a proxy which caches the module result into an object
+		/export const thing = "thing"/,
+// => const thing = module.exports.thing = ...
+
+// *
+		/export function boobs() {}/,
+// let boobs = module.exports.boobs = function boobs...
+
+		/export class Woman extends Object {}/,
+// let Woman = module.exports.Woman = class Woman extends Object {...
+
+// export default "yo" // <- don't think we gotta do anything. Take at face value.
+// module.default = ...
+
+		/export default class Wife extends Woman {}/,
+// let Wife = module.default = class Wife extends Woman {...
+	]
+]
+
+export class Module extends Type({
+	path: String, // Where this module lives
+	source: String, // source code of the module
+	imports: List(Module), // the other Modules this Module depends upon (not flat)
+}) {
+	constructor(uri) {
+		const path = this.path = parent_dir(uri);
+		const source = this.source = read(uri);
+
 		
-			// When a module imports its dependencies, it is actually
-			// passed the dependencies stored in a __modules__ object
-			// and the module just has constant/variable declarations/assignments.
 
-	// Not sure what to do about dynamic imports yet. Might leave it for now...
-	
-	// import statements are parsed for their map info
-		// (how we render vars/consts to the passed __modules__)
-		// (these replace the import statements
-		//  since all we need are references to __modules__)
-	// Then, we must parse our exports. These are tangled with the script
-	// and not necessarily at the end. So, what we do is parse what we need
-	// to and re-render the rest of the script with our assignments from
-	// __modules__ at the top and the rest of the script below which replaces
-	
-	// named_val => class|function
-	// ref => any previous declared and assigned var|let|const|<named_value>
-	// val => <named_val>|new <ref>|<ref>
-	// export default <val>; export (const|let|var) ref = val;
-	// export named_val; 
-};
+		// basically, go through each import, and make a list of shit we need...
 
-export function render() {
-	//
-};
+		// We now have the source code we can parse through...
 
-export function save() {
-	//
-};
+		// i)	import "<FILE>"; <-- we look for this first and it's the easiest
+		//			--> extract the value <file> and then
+		//				modify => module.import("<entry_relative_path>")
+		// ii)	import <DEFAULT> from "<FILE>"
+		// iii)	import * as <A> from "<FILE>"
+		// iv)	import { <A>, <B> as <C> } from "<FILE>" // <- a touch tricky?
+		// v)	import 
+	}
+}
 
-export default function bundle() {
-	//
-};
+const render_bundle = () => {
+	return `
+// Generated by YAB (Yet Another Bundler) on ${new Date().toLocaleString().replace(', ', ' @ ')}
+(modules => {
+
+})(new Proxy({
+	// render modules here!
+}));
+`;
+}
+
+export default Program({
+	["@default"]() {
+		this.pass("help");
+	},
+	build(entry_file = './index.js', output_file = './dist/build.js') {
+		// What is our root?
+		const ROOT = parent_dir(entry_file);
+		const MODULES = `${ROOT}/node_modules`;
+		const IMPORTS = {}; // stache our crap here...
+
+		// We now need some recursive functions...
+		// this is so we can crawl each node... hmm okay this will take shape soon!
+
+
+		write(output_file, render_bundle(IMPORTS, resolve_dir(ROOT, entry_file)));
+	},
+	watch(entry_file, output_file) {
+		// use nodejs to watch changes to all the IMPORTS...
+		// when a change is detected, re-run detection of IMPORTS
+		// and build. Any new files will be added to watchlist and
+		// any removed files will be removed from the watchlist...
+		// except for stuff in the node_modules/ directory.
+		// that shit will be ignored.
+	},
+	help(cmd) {
+		// do stuff..
+		if (cmd) {
+			// Help for a specific cmd
+		} else {
+			// general help. I guess.
+		}
+	}
+});

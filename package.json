@@ -23,7 +23,6 @@
   },
   "homepage": "https://github.com/SKYCRATE-ltd/YAB#readme",
   "dependencies": {
-    "computer": "github:SKYCRATE-ltd/computer",
-    "jst": "github:SKYCRATE-ltd/jst#backend"
+    "termite": "github:SKYCRATE-ltd/termite"
   }
 }
