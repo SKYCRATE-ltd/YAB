@@ -2,11 +2,9 @@ import {
 	read,
 	write,
 	parent_dir,
-	resolve_dir
 } from "computer";
 import {
-	Type,
-	List
+	Type
 } from "zed";
 import Program from "termite";
 
@@ -15,7 +13,8 @@ function pivot_dir(root, uri) {
 }
 
 function concat_dir(a, b) {
-	return `${a}/${b}`.replace(/\/\.\//g, '/');
+	// can't handle directories with dots in them... TODO: fix this...
+	return `${a}/${b}`.replace(/\/\.\//g, '/').replace(/\/[\w-]+\/\.\.\//g, '/');
 }
 
 export class Module extends Type({
@@ -32,7 +31,10 @@ export class Module extends Type({
 	static parse_selects(selects) {
 		selects = selects.split(',')
 					.map(x => x.trim())
-					.map(x => x.split(' as ').map(x => x.trim()));
+					.map(x =>
+						x.split(' as ')
+							.map(x => x.replace(/(\/\*\s[0-9]+\.\s\*\/\s*)/g, '').trim())
+					);
 		return [
 			selects
 				.map(([name, alias]) => `\n\t\t\t\t${alias || name}`)
@@ -45,7 +47,10 @@ export class Module extends Type({
 		];
 	};
 	static render_bundle(modules, entry) {
-		return `
+return `/*
+	YAB (Yet Another Bundler)
+	Generated on ${new Date().toLocaleString().replace(', ', ' @ ')}
+*/
 (modules => {
 	(function __import__(uri, mod = modules[uri]) {
 		if (!mod)
@@ -55,7 +60,7 @@ export class Module extends Type({
 				exports: {},
 				default: undefined,
 				// TODO: relative URL management...
-				import: uri => __import__(uri);
+				import: uri => __import__(uri)
 			};
 			mod(m);
 			return m;
@@ -63,10 +68,7 @@ export class Module extends Type({
 		return mod;
 	})("${entry}");
 })({
-	/*
-		YAB (Yet Another Bundler)
-		Generated on ${new Date().toLocaleString().replace(', ', ' @ ')}
-	*/
+	// MODULES:
 	${Object.values(modules).map(module => module.toString()).join('\n')}
 });
 `;
@@ -90,7 +92,7 @@ export class Module extends Type({
 		] = (mod => [
 			${std && 'mod.default,\n\t\t\t'}mod.exports
 		])(${this.import(uri)})`
-		],
+			],
 			[
 				/\bimport\s+((\S+)\s*,\s*)?{([^}]+)}\s+from\s+"(\S+)"/g,
 				(match, match2, std = '', selects, uri) => {
@@ -124,10 +126,16 @@ return `const [
 				}
 			],
 			[
-				/\bexport\s+default\s+(class|function)\s+([^({\s]+)?/g,
-				(match, type = '', name = '') =>
-					(type && `${type === "class" ? "const" : "let"} ${name} = `) +
-						`module.default = ${type}${name && ' ' + name}`
+				// TODO: support
+				/\bexport\s+default(\s+(class|function)(\s+[^({\s]+)?)?/g,
+				(match, match2, type = '', name = '') => {
+					name = name.trim();
+					return (
+						type &&
+						name &&
+						`${type === "class" ? "const" : "let"} ${name} = `
+					) + `module.default = ${type}${name && ' ' + name}`;
+				}
 			]
 		];
 	}
@@ -136,10 +144,6 @@ return `const [
 
 		this.uri = uri;
 		this.path = parent_dir(uri);
-		
-		// console.log('------------------------------');
-		// console.log(uri);
-		// console.log(this.path);
 
 		this.source =
 			this.imports.concat(this.exports)
@@ -162,7 +166,6 @@ return `const [
 		return Module.import(uri) && `module.import("${uri}")`;
 	}
 	toString() {
-		// Good enough for now
 		return `
 	"${this.uri}": module => {
 ${this.source.split('\n').map(line => `${line}`).join('\n')}
@@ -180,13 +183,19 @@ export default Program({
 		output_file = './dist/build.js',
 		node_modules = `./node_modules`,
 	) {
-		// We've got some debugging to do, then a site to build!
 		Module.root = parent_dir(entry_file);
 		Module.node_modules = node_modules;
 
 		const MODULE = new Module(pivot_dir(Module.root, entry_file));
-		console.log(Module.render_bundle(Module.cache, MODULE.uri));
-		// write(output_file, render_bundle(Module.cache, MODULE.source));
+		write(
+			output_file,
+			this.println(
+				Module.render_bundle(
+					Module.cache,
+					MODULE.uri
+				)
+			)
+		);
 	},
 	watch(entry_file, output_file) {
 		// use nodejs to watch changes to all the IMPORTS...
