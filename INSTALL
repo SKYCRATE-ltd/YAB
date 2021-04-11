@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# TODO: generate this file... termite should handle it!
+if ! [ -d node_modules/ ]; then
+	npm i
+fi
+
+SCRIPT=${1:-/usr/local/bin}/yab
+cat > $SCRIPT <<EOM
+#!/bin/bash
+
+$(pwd)/yab.js \$@
+
+EOM
+chmod +x $SCRIPT
+# And that should do it!
+echo "INSTALLED @ $SCRIPT"

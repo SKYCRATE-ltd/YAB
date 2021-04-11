@@ -210,7 +210,10 @@ export default Program({
 		if (cmd) {
 			// Help for a specific cmd
 		} else {
-			// general help. I guess.
+			this.list([
+				'build <entry-file="./index.js"> <output-file="./dist/build.js"> <node_modules-dir="./node_modules">',
+				'watch <entry-file="./index.js"> <output-file="./dist/build.js"> <node_modules-dir="./node_modules">'
+			]);
 		}
 		this.header('YAB (Yet Another Bundler)')
 	}
