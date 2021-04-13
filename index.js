@@ -7,7 +7,8 @@ import {
 	parent_dir,
 } from "computer";
 import {
-	Type
+	Type,
+	Any
 } from "zed";
 import Program from "termite";
 
@@ -25,7 +26,7 @@ export class Module extends Type({
 	uri: String,
 	source: String, // source code of the module
 	_controller: AbortController,
-	_signal_delay: 0,
+	_signal_delay: Any,
 }) {
 	static root;
 	static node_modules;
@@ -245,7 +246,6 @@ export default Program({
 				node_modules
 			)
 		};
-		this.hr();
 
 		this.header(`WATCHING FILES:`);
 		cache.forEach(([uri, module]) =>
