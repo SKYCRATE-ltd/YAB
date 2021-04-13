@@ -247,7 +247,7 @@ export default Program({
 		};
 		this.hr();
 
-		this.headline(`WATCHING FILES:`);
+		this.header(`WATCHING FILES:`);
 		cache.forEach(([uri, module]) =>
 		this.log(`Watching file ${uri}...`) && module.watch(e => {
 			this.info(`${uri} modified.`);
