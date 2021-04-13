@@ -1,5 +1,8 @@
 import {
-	read,
+	watch as watcher
+} from "fs";
+import {
+	read as r,
 	write,
 	parent_dir,
 } from "computer";
@@ -21,6 +24,8 @@ export class Module extends Type({
 	path: String, // Where this module lives
 	uri: String,
 	source: String, // source code of the module
+	_controller: AbortController,
+	_signal_delay: 0,
 }) {
 	static root;
 	static node_modules;
@@ -147,18 +152,43 @@ return `const [
 
 		this.source =
 			this.imports.concat(this.exports)
-				.reduce((src, [pattern, replacer]) =>
-					src.replace(pattern, replacer),
-					read(this.npm(uri) ?
-						concat_dir(Module.node_modules, uri) + '/index.js' :
-							concat_dir(Module.root, uri))
-								.split('\n')
-								.map((x, i) => `/* ${i + 1}. */\t${x}`)
-								.join('\n'));
+				.reduce(
+					(src, [pattern, replacer]) =>
+						src.replace(pattern, replacer),
+					this.read(uri)
+				);
 		
 		Module.cache[uri] = this;
 	}
-	npm(path) {
+	resolve_path(uri = this.uri) {
+		return this.npm(uri) ?
+				concat_dir(Module.node_modules, uri) + '/index.js' :
+					concat_dir(Module.root, uri)
+	}
+	read(uri = this.uri) {
+		return r(this.resolve_path(uri))
+				.split('\n')
+				.map((x, i) => `/* ${i + 1}. */\t${x}`)
+				.join('\n')
+	}
+	watch(listener, uri = this.resolve_path(this.uri)) {
+		this._controller = new AbortController();
+		watcher(uri, {
+			signal: this._controller.signal
+		}, (event, filename) => {
+			if (filename) {
+				if (this._signal_delay)
+					return;
+				this._signal_delay = setTimeout(() =>
+					this._signal_delay = 0, 125);
+				listener(event);
+			}
+		});
+	}
+	unwatch() {
+		this._controller.abort();
+	}
+	npm(path = this.uri) {
 		return !['.', '/'].includes(path.charAt(0));
 	}
 	import(path) {
@@ -186,6 +216,10 @@ export default Program({
 		Module.root = parent_dir(entry_file);
 		Module.node_modules = node_modules;
 
+		this.header('YAB (Yet Another Bundler)');
+		this.log(`IN: ${entry_file} -- OUT: ${output_file}`);
+		this.info(`bundling source files...`);
+
 		const MODULE = new Module(pivot_dir(Module.root, entry_file));
 		write(
 			output_file,
@@ -196,14 +230,35 @@ export default Program({
 				)
 			)
 		);
+		return Module.cache;
 	},
-	watch(entry_file, output_file) {
-		// use nodejs to watch changes to all the IMPORTS...
-		// when a change is detected, re-run detection of IMPORTS
-		// and build. Any new files will be added to watchlist and
-		// any removed files will be removed from the watchlist...
-		// except for stuff in the node_modules/ directory.
-		// that shit will be ignored.
+	watch(
+		entry_file = './index.js',
+		output_file = './dist/build.js',
+		node_modules = `./node_modules`
+	) {
+		let cache = {
+			...this.pass(
+				'build',
+				entry_file,
+				output_file,
+				node_modules
+			)
+		};
+		this.hr();
+
+		this.headline(`WATCHING FILES:`);
+		cache.forEach(([uri, module]) =>
+		this.log(`Watching file ${uri}...`) && module.watch(e => {
+			this.info(`${uri} modified.`);
+			cache.forEach(([uri, module]) => module.unwatch());
+			this.pass(
+				'watch',
+				entry_file,
+				output_file,
+				node_modules
+			);
+		}));
 	},
 	help(cmd) {
 		// do stuff..
