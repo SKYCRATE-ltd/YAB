@@ -238,27 +238,32 @@ export default Program({
 		output_file = './dist/build.js',
 		node_modules = `./node_modules`
 	) {
-		let cache = {
-			...this.pass(
-				'build',
-				entry_file,
-				output_file,
-				node_modules
-			)
-		};
+		let cache = this.pass(
+			'build',
+			entry_file,
+			output_file,
+			node_modules
+		).filter(([uri]) => uri.startsWith('.'));
+		// TODO: test this above filter...
+		// should be best. Maybe node_modules watching
+		// can be optional... smthg to consider...
 
 		this.header(`WATCHING FILES:`);
+
 		cache.forEach(([uri, module]) =>
-		this.log(`Watching file ${uri}...`) && module.watch(e => {
-			this.info(`${uri} modified.`);
-			cache.forEach(([uri, module]) => module.unwatch());
-			this.pass(
-				'watch',
-				entry_file,
-				output_file,
-				node_modules
-			);
-		}));
+			this.log(`Watching file ${uri}...`) &&
+			module.watch(e => {
+				this.info(`${uri} modified.`);
+				// Todo: I can change this to be quicker...
+				cache.forEach(([uri, module]) => module.unwatch());
+				this.pass(
+					'watch',
+					entry_file,
+					output_file,
+					node_modules
+				);
+			})
+		);
 	},
 	help(cmd) {
 		// do stuff..
