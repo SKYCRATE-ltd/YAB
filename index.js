@@ -162,9 +162,8 @@ return `const [
 		Module.cache[uri] = this;
 	}
 	resolve_path(uri = this.uri) {
-		return this.npm(uri) ?
-				concat_dir(Module.node_modules, uri) + '/index.js' :
-					concat_dir(Module.root, uri)
+		return concat_dir(this.npm(uri) ? Module.node_modules : Module.root, uri)
+				+ uri.endsWith('.js') ? '' : '/index.js';
 	}
 	read(uri = this.uri) {
 		return r(this.resolve_path(uri))
