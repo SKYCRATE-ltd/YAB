@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/bash
 
 # TODO: generate this file... termite should handle it!
 if ! [ -d node_modules/ ]; then

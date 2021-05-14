@@ -265,6 +265,7 @@ export default Program({
 		);
 	},
 	help(cmd) {
+		this.header('YAB (Yet Another Bundler)')
 		// do stuff..
 		if (cmd) {
 			// Help for a specific cmd
@@ -274,6 +275,5 @@ export default Program({
 				'watch <entry-file="./index.js"> <output-file="./dist/build.js"> <node_modules-dir="./node_modules">'
 			]);
 		}
-		this.header('YAB (Yet Another Bundler)')
 	}
 });
